@@ -10,6 +10,8 @@ This full-stack application provides OCR (Optical Character Recognition) and Fac
 - Detect faces in images using face_recognition library
 - Real-time processing feedback
 - Error handling and validation
+- Secure PostgreSQL database with encryption
+- Automatic data deletion after 5 minutes for privacy
 
 ## Prerequisites
 
@@ -20,6 +22,7 @@ This full-stack application provides OCR (Optical Character Recognition) and Fac
 - Python 3.8+
 - Tesseract OCR Engine
 - OpenCV
+- PostgreSQL 14+
 - Required Python packages (see requirements.txt)
 
 ## Installation
@@ -41,7 +44,7 @@ npm run dev
 1. Create a virtual environment:
 ```bash
 python -m venv venv
-source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+venv\Scripts\activate
 ```
 
 2. Install dependencies:
@@ -50,7 +53,33 @@ cd backend
 pip install -r requirements.txt
 ```
 
-3. Start the Flask server:
+3. Set up PostgreSQL:
+```bash
+# Install PostgreSQL (Windows)
+# Download and install from https://www.postgresql.org/download/windows/
+
+# Create database
+createdb verification_db
+```
+
+4. Configure environment variables:
+```bash
+# Create .env file in the backend directory with the following:
+DB_USER=postgres
+DB_PASSWORD=your_secure_password
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=verification_db
+# Generate an encryption key or leave empty to auto-generate
+# ENCRYPTION_KEY=
+```
+
+5. Initialize the database:
+```bash
+python -c "from db_config import init_db; init_db()"
+```
+
+6. Start the Flask server:
 ```bash
 python app.py
 ```
@@ -83,6 +112,14 @@ sudo apt-get install tesseract-ocr
 
 - Frontend runs on http://localhost:5173
 - Backend runs on http://localhost:5000
+- PostgreSQL runs on localhost:5432
+
+## Database Security Features
+
+- All sensitive user data is encrypted using Fernet symmetric encryption
+- Verification records are automatically deleted after 5 minutes
+- Only image hashes are stored, not the actual images
+- Database credentials are stored in environment variables
 
 ## Deployment to Google Cloud Platform
 
@@ -152,6 +189,8 @@ FROM python:3.9-slim
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     libtesseract-dev \
+    libpq-dev \
+    gcc \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -183,7 +222,29 @@ gcloud run deploy verification-backend \
   --allow-unauthenticated
 ```
 
-#### 5. Connect Frontend to Backend
+#### 5. Database Setup on Google Cloud
+
+1. Create a Cloud SQL PostgreSQL instance:
+```bash
+gcloud sql instances create verification-db \
+  --database-version=POSTGRES_14 \
+  --tier=db-f1-micro \
+  --region=YOUR_REGION \
+  --root-password=YOUR_SECURE_PASSWORD
+```
+
+2. Create the database:
+```bash
+gcloud sql databases create verification_db --instance=verification-db
+```
+
+3. Update the backend environment variables to connect to Cloud SQL:
+```bash
+gcloud run services update verification-backend \
+  --set-env-vars="DB_USER=postgres,DB_PASSWORD=YOUR_SECURE_PASSWORD,DB_HOST=YOUR_CLOUD_SQL_IP,DB_PORT=5432,DB_NAME=verification_db,ENCRYPTION_KEY=YOUR_ENCRYPTION_KEY"
+```
+
+#### 6. Connect Frontend to Backend
 
 After deployment, update the frontend configuration to point to the backend service URL:
 
@@ -249,19 +310,11 @@ docker-compose up -d
    - Ensure all required Google Cloud APIs are enabled
    - Check that your account has sufficient permissions
 
-3. **Application not working after deployment**:
+3. **Database connection issues**:
+   - Verify database credentials in .env file
+   - Check network connectivity to database server
+   - Ensure PostgreSQL service is running
+
+4. **Application not working after deployment**:
    - Check the Cloud Run logs for errors
    - Verify that the frontend can communicate with the backend
-
-## Security Notes
-
-- File size is limited to prevent DoS attacks
-- CORS is configured to allow only the frontend origin
-- Input validation is implemented for file types and processing options
-
-## License
-
-[Your License Information]
-```
-
-This updated README maintains all your existing content about the project, features, local setup, and usage, while adding comprehensive deployment instructions for Google Cloud Platform.
